@@ -1,0 +1,87 @@
+---
+title: "Salarios 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(gghighlight)
+library(scales)
+
+
+# reading data
+path_to_data <- "/Users/dav009/code/david/data/salaries/2020/raw.csv"
+data <- read_csv(path_to_data)
+summary(data)
+```
+
+## Generalidades
+
+```{r cars}
+colnames(data)
+poblacion <-nrow(data)
+# dolares
+data %>% group_by(`¿A usted le pagan en pesos colombianos (COP) o dólares (USD)?`) %>% summarise(n = n()) %>% mutate(freq = n / sum(n))
+
+
+```
+
+**Poblacion**: `r poblacion` (1703). (como referencia en 2016 tuvimos un alcance de 1298 personas )
+**Periodo**: Todo: entre xx/xx/2020 y xx/xx/2020
+**Preguntas**: Todo: <enlace a la lista de preugntas>
+**Dataset**: Los datos se encuentran aqui: https://github.com/colombia-dev/data/blob/master/salaries/2020/raw.csv
+
+- 2016: Aproximadamente 12% de la población recibe pagos en USD
+- 2020: Aproximadamente 13% de la poblacion recibe pagos en USD
+
+- 2016: 96% no se considera parte de una minoría. 2% se considera afrodescendiente
+- 2020: 97% no se considera parte de una minoria. 1.94% se considera afrodescendiente. (resto ver tabla abajo)
+
+```{r data}
+
+minorias <- data %>% group_by(`¿Se considera usted parte de una minoría racial o étnica?`)  %>% summarise(n = n()) %>% mutate(freq = (n / sum(n))* 100) %>% arrange(freq)
+
+minorias
+```
+
+## Distribucion de Salarios
+
+```{r data}
+# ToDO: toca ver as currencies y normalizarlas a COP
+# salario mensual
+normalized_cop_salaries <- mutate(data, salario_base_cop=`¿Cuánto era la remuneración base ANUAL de su trabajo/rol anterior?`/12)
+
+ggplot(normalized_cop_salaries, aes(x=salario_base_cop)) + geom_histogram(binwidth=500000) +   geom_density(alpha=.2, fill="#FF6666")+
+  scale_x_continuous(name="salario mensual (millones cop)",limits=c(0, 18000000), labels = function(x) x/1000000.0, breaks=pretty_breaks(n=45)) +  geom_vline(aes(xintercept=mean(salario_base_cop, na.rm=T)),color="red", linetype="dashed", size=1) +
+  theme(legend.text=element_text(size=14), axis.title=element_text(size=16), axis.text.x = element_text(size=10),
+        legend.title = element_text(size=12, face="bold")) +  
+  labs(x = "Salario Mensual (Millones COP)") +  labs(y = "") 
+
+```
+
+
+2020:
+
+- Salario Mensual promedio: 
+- Desviación Estándar : 
+- Podríamos decir que la mayoría de Salarios se concentran en el intervalo entre XXXX
+
+
+2016:
+
+- Salario Mensual promedio: 3,018,158
+- Desviación Estándar : 2,366,383
+- Podríamos decir que la mayoría de Salarios se concentran en el intervalo entre 1.5 – 4M COP.
+
+## Preguntas
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

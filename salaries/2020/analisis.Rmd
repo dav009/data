@@ -12,6 +12,7 @@ library(ggplot2)
 library(gghighlight)
 library(scales)
 library(stringr)
+library(stringi)
 
 
 # reading data
@@ -35,7 +36,7 @@ data %>% group_by(`¿A usted le pagan en pesos colombianos (COP) o dólares (USD
 ```
 
 **Poblacion**: `r poblacion` (1703). (como referencia en 2016 tuvimos un alcance de 1298 personas )
-**Periodo**: Todo: entre xx/xx/2020 y xx/xx/2020
+**Periodo**: Todo: entre Junio 30 2020 y Julio 20 2020
 **Preguntas**: Todo: <enlace a la lista de preugntas>
 **Dataset**: Los datos se encuentran aqui: https://github.com/colombia-dev/data/blob/master/salaries/2020/raw.csv
 
@@ -44,6 +45,8 @@ data %>% group_by(`¿A usted le pagan en pesos colombianos (COP) o dólares (USD
 
 - 2016: 96% no se considera parte de una minoría. 2% se considera afrodescendiente
 - 2020: 97% no se considera parte de una minoria. 1.94% se considera afrodescendiente. (resto ver tabla abajo)
+
+Nota: haciendo un análisis vía excel (filtrando las filas por ¿Con cual pronombre prefiere que se refieran a usted? ) para ella, dan 174 mujeres de esas, solo una completó con mujer - latina en la pregunta de ¿Se considera usted parte de una minoría racial o étnica? (osea que las 173 personas que respondieron "ella" no se consideran parte de LGBT)
 
 ```{r }
 
@@ -58,10 +61,10 @@ minorias
 # 2016
 precio_dolar_2016 <- 3355
 data_2016 <- mutate(data_2016, b=as.numeric(`¿Cuanto es su salario ANUAL?`))
-
+# calculadon salarios en pesos para los que tienen dolares
 data_2016<- mutate(data_2016, `¿Cuanto es su salario ANUAL?`=as.numeric(`¿Cuanto es su salario ANUAL?`))
 normalized_cop_salaries_2016 <- mutate(data_2016, `¿Cuanto es su salario ANUAL?`= ifelse(`¿A usted le pagan en pesos colombianos (COP) o dólares (USD)?`=="dolares", `¿Cuanto es su salario ANUAL?`*precio_dolar_2016,  `¿Cuanto es su salario ANUAL?`))
-
+# salario mensual
 monthly_salary_2016<- mutate(normalized_cop_salaries_2016, `salario_mensual`= `¿Cuanto es su salario ANUAL?`/12.0)  %>% mutate(anio=2016)
 
 
@@ -70,14 +73,23 @@ monthly_salary_2016<- mutate(normalized_cop_salaries_2016, `salario_mensual`= `�
 # ToDo: arreglar precio del dolar
 precio_dolar_2020 <- 3000
 normalized_cop_salaries <- mutate(data, `¿Usando la moneda de la respuesta anterior, cuánto es su remuneración ANUAL base?  eg 36,000,000 si es pesos o 3,600 si es dólares`= ifelse(`¿A usted le pagan en pesos colombianos (COP) o dólares (USD)?`=="dolares", as.numeric(`"¿Usando la moneda de la respuesta anterior, cuánto es su remuneración ANUAL base?  eg 36,000,000 si es pesos o 3,600 si es dólares"`)*precio_dolar_2020,  as.numeric(`¿Usando la moneda de la respuesta anterior, cuánto es su remuneración ANUAL base?  eg 36,000,000 si es pesos o 3,600 si es dólares`)))
-
+# salario mensual
 monthly_salary<- mutate(normalized_cop_salaries, `salario_mensual`= `¿Usando la moneda de la respuesta anterior, cuánto es su remuneración ANUAL base?  eg 36,000,000 si es pesos o 3,600 si es dólares`/12.0)  %>% mutate(anio=2020)
 
+# encuestas de 2020 y 2016 en un solo data frame
 all_monthly <- bind_rows(monthly_salary, monthly_salary_2016) %>% filter(salario_mensual < 18000000)
+# normalizando el nombre de las ciudades (tildes,mayusculas)
+all_monthly <- mutate(all_monthly, `¿En que ciudad de Colombia vive?`=tolower(stri_trans_general(`¿En que ciudad de Colombia vive?`,"Latin-ASCII")))
 
 
-ggplot(all_monthly, aes(x=salario_mensual)) + geom_histogram(binwidth=500000) +   geom_density(alpha=.2, fill="#FF6666")+
-  scale_x_continuous(name="salario mensual (millones cop)",limits=c(0, 18000000), labels = function(x) x/1000000.0, breaks=pretty_breaks(n=45)) +  geom_vline(data=filter(all_monthly, anio=="2016"), aes(xintercept=mean(salario_mensual, na.rm=T)),color="red", linetype="dashed", size=1) + geom_vline(data=filter(all_monthly, anio=="2020"), aes(xintercept=mean(salario_mensual, na.rm=T)),color="red", linetype="dashed", size=1) +
+ggplot(all_monthly, aes(x=salario_mensual)) + 
+  geom_histogram(binwidth=500000) + 
+  geom_density(alpha=.2, fill="#FF6666") +
+  scale_x_continuous(name="salario mensual (millones cop)",limits=c(0, 18000000), labels = function(x) x/1000000.0, breaks=pretty_breaks(n=45)) + 
+  # linea promedio para 2016
+  geom_vline(data=filter(all_monthly, anio=="2016"), aes(xintercept=mean(salario_mensual, na.rm=T)),color="red", linetype="dashed", size=1) + 
+  # linea promedio para 2020
+  geom_vline(data=filter(all_monthly, anio=="2020"), aes(xintercept=mean(salario_mensual, na.rm=T)),color="red", linetype="dashed", size=1) +
   theme(legend.text=element_text(size=14), axis.title=element_text(size=16), axis.text.x = element_text(size=10),
         legend.title = element_text(size=12, face="bold")) +  
   labs(x = "Salario Mensual (Millones COP)") +  labs(y = "") +  facet_grid(anio ~ .)
@@ -98,6 +110,17 @@ ggplot(all_monthly, aes(x=salario_mensual)) + geom_histogram(binwidth=500000) + 
 - Desviación Estándar : 2,366,383
 - Podríamos decir que la mayoría de Salarios se concentran en el intervalo entre 1.5 – 4M COP.
 
-## Preguntas
+## Distribucion por Ciudad
+```{r,  echo=FALSE}
+# distribucion por lugar de la encuesta
+por_ciudad = arrange(select(all_monthly,anio, ciudad=`¿En que ciudad de Colombia vive?`) %>% group_by(anio,ciudad) %>% dplyr::summarize(n=n()),-n) %>% filter(n >10)
 
+ggplot(por_ciudad, aes(x=reorder(ciudad, n), y=n, fill=factor(anio))) +
+   geom_bar(stat="identity",position="dodge") + 
+   scale_y_continuous(breaks=pretty_breaks(n=10)) +
+   theme(legend.text=element_text(size=14), 
+         axis.title=element_text(size=16), 
+         axis.text.x = element_text(size=10,angle = 90)) +  
+   labs(x = "") +  labs(y = "") 
+```
 

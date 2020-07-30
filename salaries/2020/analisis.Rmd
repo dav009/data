@@ -4,18 +4,23 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width=20, fig.height=10) 
 knitr::opts_chunk$set(echo = TRUE)
 library(readr)
 library(dplyr)
 library(ggplot2)
 library(gghighlight)
 library(scales)
+library(stringr)
 
 
 # reading data
 path_to_data <- "/Users/dav009/code/david/data/salaries/2020/raw.csv"
-data <- read_csv(path_to_data)
+path_to_data_2016 <- "/Users/dav009/code/david/data/salaries/2016/normalized.csv"
+data <- read_csv(path_to_data)  %>% select(-Timestamp)
+data_2016 <- read_csv(path_to_data_2016) %>% select(-Timestamp)
 summary(data)
+summary(data_2016)
 ```
 
 ## Generalidades
@@ -40,7 +45,7 @@ data %>% group_by(`¿A usted le pagan en pesos colombianos (COP) o dólares (USD
 - 2016: 96% no se considera parte de una minoría. 2% se considera afrodescendiente
 - 2020: 97% no se considera parte de una minoria. 1.94% se considera afrodescendiente. (resto ver tabla abajo)
 
-```{r data}
+```{r }
 
 minorias <- data %>% group_by(`¿Se considera usted parte de una minoría racial o étnica?`)  %>% summarise(n = n()) %>% mutate(freq = (n / sum(n))* 100) %>% arrange(freq)
 
@@ -49,16 +54,33 @@ minorias
 
 ## Distribucion de Salarios
 
-```{r data}
+```{r, echo=FALSE}
+# 2016
+precio_dolar_2016 <- 3355
+data_2016 <- mutate(data_2016, b=as.numeric(`¿Cuanto es su salario ANUAL?`))
+
+data_2016<- mutate(data_2016, `¿Cuanto es su salario ANUAL?`=as.numeric(`¿Cuanto es su salario ANUAL?`))
+normalized_cop_salaries_2016 <- mutate(data_2016, `¿Cuanto es su salario ANUAL?`= ifelse(`¿A usted le pagan en pesos colombianos (COP) o dólares (USD)?`=="dolares", `¿Cuanto es su salario ANUAL?`*precio_dolar_2016,  `¿Cuanto es su salario ANUAL?`))
+
+monthly_salary_2016<- mutate(normalized_cop_salaries_2016, `salario_mensual`= `¿Cuanto es su salario ANUAL?`/12.0)  %>% mutate(anio=2016)
+
+
 # ToDO: toca ver as currencies y normalizarlas a COP
 # salario mensual
-normalized_cop_salaries <- mutate(data, salario_base_cop=`¿Cuánto era la remuneración base ANUAL de su trabajo/rol anterior?`/12)
+# ToDo: arreglar precio del dolar
+precio_dolar_2020 <- 3000
+normalized_cop_salaries <- mutate(data, `¿Usando la moneda de la respuesta anterior, cuánto es su remuneración ANUAL base?  eg 36,000,000 si es pesos o 3,600 si es dólares`= ifelse(`¿A usted le pagan en pesos colombianos (COP) o dólares (USD)?`=="dolares", as.numeric(`"¿Usando la moneda de la respuesta anterior, cuánto es su remuneración ANUAL base?  eg 36,000,000 si es pesos o 3,600 si es dólares"`)*precio_dolar_2020,  as.numeric(`¿Usando la moneda de la respuesta anterior, cuánto es su remuneración ANUAL base?  eg 36,000,000 si es pesos o 3,600 si es dólares`)))
 
-ggplot(normalized_cop_salaries, aes(x=salario_base_cop)) + geom_histogram(binwidth=500000) +   geom_density(alpha=.2, fill="#FF6666")+
-  scale_x_continuous(name="salario mensual (millones cop)",limits=c(0, 18000000), labels = function(x) x/1000000.0, breaks=pretty_breaks(n=45)) +  geom_vline(aes(xintercept=mean(salario_base_cop, na.rm=T)),color="red", linetype="dashed", size=1) +
+monthly_salary<- mutate(normalized_cop_salaries, `salario_mensual`= `¿Usando la moneda de la respuesta anterior, cuánto es su remuneración ANUAL base?  eg 36,000,000 si es pesos o 3,600 si es dólares`/12.0)  %>% mutate(anio=2020)
+
+all_monthly <- bind_rows(monthly_salary, monthly_salary_2016) %>% filter(salario_mensual < 18000000)
+
+
+ggplot(all_monthly, aes(x=salario_mensual)) + geom_histogram(binwidth=500000) +   geom_density(alpha=.2, fill="#FF6666")+
+  scale_x_continuous(name="salario mensual (millones cop)",limits=c(0, 18000000), labels = function(x) x/1000000.0, breaks=pretty_breaks(n=45)) +  geom_vline(data=filter(all_monthly, anio=="2016"), aes(xintercept=mean(salario_mensual, na.rm=T)),color="red", linetype="dashed", size=1) + geom_vline(data=filter(all_monthly, anio=="2020"), aes(xintercept=mean(salario_mensual, na.rm=T)),color="red", linetype="dashed", size=1) +
   theme(legend.text=element_text(size=14), axis.title=element_text(size=16), axis.text.x = element_text(size=10),
         legend.title = element_text(size=12, face="bold")) +  
-  labs(x = "Salario Mensual (Millones COP)") +  labs(y = "") 
+  labs(x = "Salario Mensual (Millones COP)") +  labs(y = "") +  facet_grid(anio ~ .)
 
 ```
 
@@ -78,10 +100,4 @@ ggplot(normalized_cop_salaries, aes(x=salario_base_cop)) + geom_histogram(binwid
 
 ## Preguntas
 
-You can also embed plots, for example:
 
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

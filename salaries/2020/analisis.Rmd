@@ -219,7 +219,8 @@ filter(lenguages_de_programacion_top_only, anio==2020) %>% ggplot(
 
 ```
 
-
+- que lenguajes entraron en el top en 2020 que no estaban en 2016
+- que lenguajes salieron del top en 2020 que estaban en 2016
 - comparar que lenguajes crecieron mas en uso?
 - comparar que lenguajes crecieron mas en salario mejor pago?
 
@@ -252,7 +253,7 @@ filter(all_monthly, `salario_mensual`<30000000) %>% filter(anio==2020) %>% ggplo
 ```
 
 ## Salario Justo por tecnologia
-
+Revisar este plot, no hace sentido con lo que muestra el plot de slarios por tecnologia
 ```{r, echo=FALSE}
 filter(lenguages_de_programacion_top_only, `salario_mensual`<30000000) %>% filter(anio==2020) %>%
 ggplot(aes(x=`salario_mensual`)) + 

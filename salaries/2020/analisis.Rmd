@@ -71,13 +71,19 @@ monthly_salary_2016<- mutate(normalized_cop_salaries_2016, `salario_mensual`= `�
 # ToDO: toca ver as currencies y normalizarlas a COP
 # salario mensual
 # ToDo: arreglar precio del dolar
-precio_dolar_2020 <- 3000
+# trm: https://www.dolarhoy.co/calculadora/?fecha=2020-07-01&valor=1&conversion=usd-cop
+dolar_trm = c(3758.91, 3756.28, 3723.67, 3660.18, 3645.90, 3645.90, 3645.90 , 3633.32 , 3631.54 ,3625.61, 3633.42)
+precio_dolar_2020 <- mean(dolar_trm)
 normalized_cop_salaries <- mutate(data, `¿Usando la moneda de la respuesta anterior, cuánto es su remuneración ANUAL base?  eg 36,000,000 si es pesos o 3,600 si es dólares`= ifelse(`¿A usted le pagan en pesos colombianos (COP) o dólares (USD)?`=="dolares", as.numeric(`"¿Usando la moneda de la respuesta anterior, cuánto es su remuneración ANUAL base?  eg 36,000,000 si es pesos o 3,600 si es dólares"`)*precio_dolar_2020,  as.numeric(`¿Usando la moneda de la respuesta anterior, cuánto es su remuneración ANUAL base?  eg 36,000,000 si es pesos o 3,600 si es dólares`)))
 # salario mensual
-monthly_salary<- mutate(normalized_cop_salaries, `salario_mensual`= `¿Usando la moneda de la respuesta anterior, cuánto es su remuneración ANUAL base?  eg 36,000,000 si es pesos o 3,600 si es dólares`/12.0)  %>% mutate(anio=2020)
+monthly_salary<- mutate(normalized_cop_salaries, `salario_mensual`= `¿Usando la moneda de la respuesta anterior, cuánto es su remuneración ANUAL base?  eg 36,000,000 si es pesos o 3,600 si es dólares`/12.0)  %>% 
+                  filter(`¿En qué año nació?`>1945 & `¿En qué año nació?`<2010) %>%
+                  mutate(anio=2020)
 
 # encuestas de 2020 y 2016 en un solo data frame
 all_monthly <- bind_rows(monthly_salary, monthly_salary_2016) %>% filter(salario_mensual < 18000000)
+all_monthly <- mutate(all_monthly, `planguage_lower`=tolower(`¿En cuál de los siguientes lenguajes de programación ocupa la mayoría de su tiempo laboral?`)) 
+
 # normalizando el nombre de las ciudades (tildes,mayusculas)
 all_monthly <- mutate(all_monthly, `¿En que ciudad de Colombia vive?`=tolower(stri_trans_general(`¿En que ciudad de Colombia vive?`,"Latin-ASCII")))
 
@@ -94,13 +100,14 @@ ggplot(all_monthly, aes(x=salario_mensual)) +
         legend.title = element_text(size=12, face="bold")) +  
   labs(x = "Salario Mensual (Millones COP)") +  labs(y = "") +  facet_grid(anio ~ .)
 
+group_by(all_monthly, anio) %>% summarize(promedio=mean(salario_mensual), sd=sd(salario_mensual))
 ```
 
 
 2020:
 
-- Salario Mensual promedio: 
-- Desviación Estándar : 
+- Salario Mensual promedio: 4,385,761
+- Desviación Estándar :  3,635,499
 - Podríamos decir que la mayoría de Salarios se concentran en el intervalo entre XXXX
 
 
@@ -113,6 +120,7 @@ ggplot(all_monthly, aes(x=salario_mensual)) +
 ## Distribucion por Ciudad
 ```{r,  echo=FALSE}
 # distribucion por lugar de la encuesta
+# ToDO algunas entradas tienen wikipedia.orgo/enwiki/Cali ... :'( toca limpiar
 por_ciudad = arrange(select(all_monthly,anio, ciudad=`¿En que ciudad de Colombia vive?`) %>% group_by(anio,ciudad) %>% dplyr::summarize(n=n()),-n) %>% filter(n >10)
 
 ggplot(por_ciudad, aes(x=reorder(ciudad, n), y=n, fill=factor(anio))) +
@@ -124,3 +132,147 @@ ggplot(por_ciudad, aes(x=reorder(ciudad, n), y=n, fill=factor(anio))) +
    labs(x = "") +  labs(y = "") 
 ```
 
+## Experiencia
+
+```{r echo=FALSE}
+#normalizing years of experinece
+all_monthly = mutate(all_monthly, `¿Cuántos años de experiencia en desarrollo de software profesional tiene?`= ifelse(`¿Cuántos años de experiencia en desarrollo de software profesional tiene?`=="1 año", "1+ año",  `¿Cuántos años de experiencia en desarrollo de software profesional tiene?`))
+
+all_monthly = mutate(all_monthly, `¿Cuántos años de experiencia en desarrollo de software profesional tiene?`= ifelse(`¿Cuántos años de experiencia en desarrollo de software profesional tiene?`=="2 años", "2+ años",  `¿Cuántos años de experiencia en desarrollo de software profesional tiene?`))
+
+
+ggplot(all_monthly, aes(x=`¿Cuántos años de experiencia en desarrollo de software profesional tiene?`)) + 
+                     geom_bar(aes(y=..count../sum(..count..)), position="dodge") +
+                     theme(
+                        legend.text=element_text(size=14),
+                        axis.title=element_text(size=16), 
+                        axis.text.x = element_text(size=10),
+                        legend.title = element_text(size=12, face="bold") ) +  
+                    labs(x = "Años de Experiencia") +  
+                    labs(y = "")  + 
+                    scale_x_discrete(
+                        limit = c("menos de 1 año",
+                                  "1+ año", "2+ años", 
+                                  "3 - 5 años", 
+                                  "5 - 10 años", "10 - 15 años", "más de 15 años")) + 
+                    scale_y_continuous(labels = percent_format()) + facet_grid(anio ~ .)
+```
+
+## Salarios por ciudad / Edad
+```{r echo=FALSE} 
+filter(all_monthly, anio==2020) %>% 
+filter(`¿En que ciudad de Colombia vive?`=="bogota" | `¿En que ciudad de Colombia vive?`=="cali" |`¿En que ciudad de Colombia vive?`== "medellin" | `¿En que ciudad de Colombia vive?`=="barranquilla") %>%
+ggplot(aes(x=`¿En qué año nació?`,  y=`salario_mensual`, colour=`¿En que ciudad de Colombia vive?`)) +
+  geom_point(alpha=0.4, size =2) + 
+  geom_smooth(fun.y = "mean", aes(fill=`¿En que ciudad de Colombia vive?`)) + 
+  scale_y_continuous( labels = comma,limits = c(0, 18000000)) +
+  facet_grid(`¿En que ciudad de Colombia vive?`~ .)+
+  theme(legend.text=element_text(size=14), axis.title=element_text(size=16), axis.text.x = element_text(size=10)) +  
+  labs(y = "Salario Mensual") 
+```
+
+## Ingles
+
+En 2020
+```{r echo=FALSE}
+
+filter(all_monthly, anio==2020) %>% 
+  ggplot(aes(x=`salario_mensual`, colour=`¿Cuál es su nivel de inglés para realizar conversaciones técnicas sobre software?`, fill=`¿Cuál es su nivel de inglés para realizar conversaciones técnicas sobre software?`)) +
+  geom_histogram(binwidth=500000, aes(y=..count../sum(..count..))) +
+  scale_x_continuous(name="salario mensual (millones cop)",limits=c(0, 18000000), labels = function(x) x/1000000.0, breaks=pretty_breaks(n=45))+ 
+  labs(y = "") + 
+  theme(legend.text=element_text(size=14), axis.title=element_text(size=16), axis.text.x = element_text(size=10),
+        legend.title = element_text(size=12, face="bold"))+ scale_colour_brewer(palette="Set1") + scale_fill_brewer(palette="Set1") 
+  
+```
+
+seria bueno comparar que porcentaje son avanzado /intermedio y basico con respecto a 2016
+
+
+
+### Lenguajes de Programacion
+
+```{r echo=FALSE}
+top_lenguajes = group_by(all_monthly, planguage_lower) %>% filter(anio==2020)  %>% dplyr::summarize(n = n()) %>%  filter(n>10) %>% arrange(n)
+
+lenguages_de_programacion_top_only = dplyr::inner_join(top_lenguajes, all_monthly, by="planguage_lower")
+
+filter(lenguages_de_programacion_top_only, anio==2020) %>% ggplot( 
+       aes(x=`salario_mensual`,
+           color=`¿Para qué tipo de empresa trabaja?`,
+           fill=`¿Para qué tipo de empresa trabaja?`)) + 
+  # xlab(" title="salario mensual (millones cop)"")+
+  scale_x_continuous(name="salario mensual (millones cop)", labels = function(x) x/1000000, breaks=pretty_breaks(n=20))+  
+  scale_y_continuous( labels = comma, breaks=pretty_breaks(n=5))+
+  geom_histogram(binwidth=1000000)+
+  facet_wrap(~planguage_lower) + 
+  geom_vline(aes(xintercept=mean(salario_mensual, na.rm=T)), 
+             color="red", 
+             linetype="dashed", 
+             size=1,
+             labels="Salario mensual promedio") +
+  theme(legend.text=element_text(size=12), 
+        axis.title=element_text(size=10), 
+        axis.text.x = element_text(size=8),
+        legend.title = element_text(size=10, face="bold")) +  
+  labs(x = "Salario Mensual (Millones COP)") +  labs(y = "Numero Desarrolladores") 
+
+```
+
+
+- comparar que lenguajes crecieron mas en uso?
+- comparar que lenguajes crecieron mas en salario mejor pago?
+
+
+## Salario Justo por tipo de compania
+
+```{r, echo=FALSE}
+
+filter(all_monthly, `salario_mensual`<30000000) %>% filter(anio==2020) %>% ggplot(aes(x=`salario_mensual`)) + 
+  # xlab(" title="salario mensual (millones cop)"")+
+  scale_x_continuous(limits = c(0, 20000000), name="salario mensual (millones cop)", 
+                    labels = function(x) x/1000000, breaks=pretty_breaks(n=30)) +
+  scale_y_continuous( labels = comma, breaks=pretty_breaks(n=10))+
+  geom_histogram(aes(group=`¿Siente que su salario es justo?`,
+                     colour=`¿Siente que su salario es justo?`,
+                     fill=`¿Siente que su salario es justo?`),
+                 alpha = 0.5, binwidth=1000000) +
+  scale_colour_brewer(palette="Set1") + 
+  scale_fill_brewer(palette="Set1") +
+  facet_wrap(~`¿Para qué tipo de empresa trabaja?`) +
+  theme(legend.text=element_text(size=14), 
+        axis.title=element_text(size=16), 
+        axis.text.x = element_text(size=10), 
+        strip.text.x = element_text(size = 14), 
+        legend.title = element_text(size=12, face="bold")) +  
+  labs(x = "Salario Mensual (Millones COP)") +
+  labs(y = "Numero Desarrolladores") +
+  coord_flip()
+
+```
+
+## Salario Justo por tecnologia
+
+```{r, echo=FALSE}
+filter(lenguages_de_programacion_top_only, `salario_mensual`<30000000) %>% filter(anio==2020) %>%
+ggplot(aes(x=`salario_mensual`)) + 
+  # xlab(" title="salario mensual (millones cop)"")+
+  scale_x_continuous(limits = c(0, 20000000), name="salario mensual (millones cop)", 
+                    labels = function(x) x/1000000, breaks=pretty_breaks(n=30)) +
+  scale_y_continuous( labels = comma, breaks=pretty_breaks(n=10))+
+  geom_histogram(aes(group=`¿Siente que su salario es justo?`,
+                     colour=`¿Siente que su salario es justo?`,
+                     fill=`¿Siente que su salario es justo?`),
+                 alpha = 0.5, binwidth=1000000) +
+  scale_colour_brewer(palette="Set1") + 
+  scale_fill_brewer(palette="Set1") +
+  facet_wrap(~`planguage_lower`) +
+  theme(legend.text=element_text(size=14), 
+        axis.title=element_text(size=16), 
+        axis.text.x = element_text(size=10), 
+        strip.text.x = element_text(size = 14), 
+        legend.title = element_text(size=12, face="bold")) +  
+  labs(x = "Salario Mensual (Millones COP)") +
+  labs(y = "Numero Desarrolladores") 
+
+```
